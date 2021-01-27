@@ -1,5 +1,8 @@
 module DisjointSet exposing (DisjointSet, empty, find, fromDict, toDict, union)
 
+{-| A disjoint set implementation with path compression.
+-}
+
 import Dict exposing (Dict)
 
 
