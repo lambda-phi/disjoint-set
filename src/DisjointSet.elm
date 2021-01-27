@@ -1,11 +1,16 @@
-module DisjointSet exposing (DisjointSet, empty, find, fromDict, toDict, union)
+module DisjointSet exposing (DisjointSet, empty, union, find, fromDict, toDict)
 
 {-| A disjoint set implementation with path compression.
+
+@docs DisjointSet, empty, union, find, fromDict, toDict
+
 -}
 
 import Dict exposing (Dict)
 
 
+{-| The `DisjointSet` type definition.
+-}
 type DisjointSet a
     = DisjointSet (Dict a a)
 
@@ -15,22 +20,6 @@ type DisjointSet a
 empty : DisjointSet a
 empty =
     DisjointSet Dict.empty
-
-
-{-| Creates a disjoint set from a dictionary of `(element, equivalent)` pairs.
--}
-fromDict : Dict comparable comparable -> DisjointSet comparable
-fromDict dict =
-    Dict.foldl union empty dict
-
-
-{-| Creates a dictionary of `(element, equivalent)` pairs from a disjoint set.
--}
-toDict : DisjointSet comparable -> Dict comparable comparable
-toDict set =
-    case set of
-        DisjointSet dict ->
-            dict
 
 
 {-| Unifies two elements. If an element is not part of any set, it is created.
@@ -132,3 +121,19 @@ find item set =
                     )
     in
     find_ item
+
+
+{-| Creates a disjoint set from a dictionary of `(element, equivalent)` pairs.
+-}
+fromDict : Dict comparable comparable -> DisjointSet comparable
+fromDict dict =
+    Dict.foldl union empty dict
+
+
+{-| Creates a dictionary of `(element, equivalent)` pairs from a disjoint set.
+-}
+toDict : DisjointSet comparable -> Dict comparable comparable
+toDict set =
+    case set of
+        DisjointSet dict ->
+            dict
