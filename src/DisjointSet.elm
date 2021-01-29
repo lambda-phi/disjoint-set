@@ -1,25 +1,27 @@
-module DisjointSet exposing (DisjointSet, empty, union, find, fromDict, toDict)
+module DisjointSet exposing (DisjointSet, empty, union, find, fromList, toList)
 
 {-| A disjoint set implementation with path compression.
 
-@docs DisjointSet, empty, union, find, fromDict, toDict
+@docs DisjointSet, empty, union, find, fromList, toList
 
 -}
 
-import Dict exposing (Dict)
+-- ℹ️ Since not every type is `comparable` in Elm (like union types),
+-- we have to use `List (a, a)` instead of `Dict a a`.
+-- Searches are O(n) instead of O(1), but we can use any type.
 
 
-{-| The `DisjointSet` type definition.
+{-| A data structure that stores non-overlapping sets.
 -}
-type DisjointSet comparable
-    = DisjointSet (Dict comparable comparable)
+type DisjointSet a
+    = DisjointSet (List ( a, a ))
 
 
 {-| Creats an empty disjoint set.
 -}
-empty : DisjointSet comparable
+empty : DisjointSet a
 empty =
-    DisjointSet Dict.empty
+    DisjointSet []
 
 
 {-| Unifies two elements. If an element is not part of any set, it is created.
@@ -28,30 +30,28 @@ The root element is always the first element that was added.
 
 This operation does path compression as an optimization.
 
-    import Dict
-
-    union "a" "a" empty |> toDict --> Dict.fromList [ ("a", "a") ]
-    union "a" "b" empty |> toDict --> Dict.fromList [ ("a", "a"), ("b", "a") ]
+    union "a" "a" empty |> toList --> [ ("a", "a") ]
+    union "a" "b" empty |> toList --> [ ("a", "a"), ("b", "a") ]
 
     empty
         |> union "a" "b"
         |> union "b" "c"
-        |> toDict
-    --> Dict.fromList [ ("a", "a"), ("b", "a"), ("c", "a") ]
+        |> toList
+    --> [ ("a", "a"), ("b", "a"), ("c", "a") ]
 
     empty
         |> union "a" "b"
         |> union "x" "y"
         |> union "b" "y"
-        |> toDict
-    --> Dict.fromList [ ("a", "a"), ("b", "a"), ("x", "a"), ("y", "a") ]
+        |> toList
+    --> [ ("a", "a"), ("b", "a"), ("x", "a"), ("y", "a") ]
 
 -}
-union : comparable -> comparable -> DisjointSet comparable -> DisjointSet comparable
-union item1 item2 (DisjointSet set) =
+union : a -> a -> DisjointSet a -> DisjointSet a
+union item1 item2 (DisjointSet pairs) =
     let
         path1 =
-            path item1 (DisjointSet set) |> Maybe.withDefault [ item1 ]
+            path item1 pairs |> Maybe.withDefault [ item1 ]
 
         root =
             List.head path1 |> Maybe.withDefault item1
@@ -59,11 +59,10 @@ union item1 item2 (DisjointSet set) =
         compressed =
             List.map2 (\x y -> [ ( x, root ), ( y, root ) ])
                 path1
-                (path item2 (DisjointSet set) |> Maybe.withDefault [ item2 ])
+                (path item2 pairs |> Maybe.withDefault [ item2 ])
                 |> List.concat
-                |> Dict.fromList
     in
-    DisjointSet (Dict.union compressed set)
+    DisjointSet (merge compressed pairs)
 
 
 {-| Finds the root element from a given element.
@@ -86,32 +85,32 @@ union item1 item2 (DisjointSet set) =
     find "x" set --> Nothing
 
 -}
-find : comparable -> DisjointSet comparable -> Maybe comparable
-find item set =
-    path item set
+find : a -> DisjointSet a -> Maybe a
+find item (DisjointSet pairs) =
+    path item pairs
         |> Maybe.andThen List.head
 
 
-{-| Creates a disjoint set from a dictionary of `(element, equivalent)` pairs.
+{-| Creates a disjoint set from a list of `(element, equivalent)` pairs.
 -}
-fromDict : Dict comparable comparable -> DisjointSet comparable
-fromDict dict =
-    Dict.foldl union empty dict
+fromList : List ( a, a ) -> DisjointSet a
+fromList list =
+    List.foldl (\( x, y ) -> union x y) empty list
 
 
-{-| Creates a dictionary of `(element, equivalent)` pairs from a disjoint set.
+{-| Creates a list of `(element, equivalent)` pairs from a disjoint set.
 -}
-toDict : DisjointSet comparable -> Dict comparable comparable
-toDict (DisjointSet set) =
-    set
+toList : DisjointSet a -> List ( a, a )
+toList (DisjointSet list) =
+    list
 
 
-path : comparable -> DisjointSet comparable -> Maybe (List comparable)
-path item (DisjointSet set) =
+path : a -> List ( a, a ) -> Maybe (List a)
+path item pairs =
     let
-        path_ : comparable -> List comparable -> Maybe (List comparable)
+        path_ : a -> List a -> Maybe (List a)
         path_ head tail =
-            Dict.get item set
+            get item pairs
                 |> Maybe.andThen
                     (\parent ->
                         if head == parent then
@@ -122,3 +121,36 @@ path item (DisjointSet set) =
                     )
     in
     path_ item []
+
+
+get : a -> List ( a, a ) -> Maybe a
+get x pairs =
+    case pairs of
+        ( head, parent ) :: tail ->
+            if x == head then
+                Just parent
+
+            else
+                get x tail
+
+        [] ->
+            Nothing
+
+
+merge : List ( a, a ) -> List ( a, a ) -> List ( a, a )
+merge pairs1 pairs2 =
+    List.foldl addOrReplace pairs2 pairs1
+
+
+addOrReplace : ( a, a ) -> List ( a, a ) -> List ( a, a )
+addOrReplace ( x, y ) pairs =
+    case pairs of
+        ( head, parent ) :: tail ->
+            if x == head then
+                ( x, y ) :: tail
+
+            else
+                ( head, parent ) :: addOrReplace ( x, y ) tail
+
+        [] ->
+            [ ( x, y ) ]
