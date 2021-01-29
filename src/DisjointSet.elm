@@ -11,13 +11,13 @@ import Dict exposing (Dict)
 
 {-| The `DisjointSet` type definition.
 -}
-type DisjointSet a
-    = DisjointSet (Dict a a)
+type DisjointSet comparable
+    = DisjointSet (Dict comparable comparable)
 
 
 {-| Creats an empty disjoint set.
 -}
-empty : DisjointSet a
+empty : DisjointSet comparable
 empty =
     DisjointSet Dict.empty
 
@@ -48,26 +48,10 @@ This operation does path compression as an optimization.
 
 -}
 union : comparable -> comparable -> DisjointSet comparable -> DisjointSet comparable
-union item1 item2 set =
+union item1 item2 (DisjointSet set) =
     let
-        dict =
-            toDict set
-
-        path : comparable -> List comparable -> List comparable
-        path item tail =
-            Dict.get item dict
-                |> Maybe.map
-                    (\parent ->
-                        if item == parent then
-                            item :: tail
-
-                        else
-                            path parent (item :: tail)
-                    )
-                |> Maybe.withDefault [ item ]
-
         path1 =
-            path item1 []
+            path item1 (DisjointSet set) |> Maybe.withDefault [ item1 ]
 
         root =
             List.head path1 |> Maybe.withDefault item1
@@ -75,11 +59,11 @@ union item1 item2 set =
         compressed =
             List.map2 (\x y -> [ ( x, root ), ( y, root ) ])
                 path1
-                (path item2 [])
+                (path item2 (DisjointSet set) |> Maybe.withDefault [ item2 ])
                 |> List.concat
                 |> Dict.fromList
     in
-    DisjointSet (Dict.union compressed dict)
+    DisjointSet (Dict.union compressed set)
 
 
 {-| Finds the root element from a given element.
@@ -104,23 +88,8 @@ union item1 item2 set =
 -}
 find : comparable -> DisjointSet comparable -> Maybe comparable
 find item set =
-    let
-        dict =
-            toDict set
-
-        find_ : comparable -> Maybe comparable
-        find_ x =
-            Dict.get x dict
-                |> Maybe.andThen
-                    (\root ->
-                        if x == root then
-                            Just root
-
-                        else
-                            find_ root
-                    )
-    in
-    find_ item
+    path item set
+        |> Maybe.andThen List.head
 
 
 {-| Creates a disjoint set from a dictionary of `(element, equivalent)` pairs.
@@ -133,7 +102,23 @@ fromDict dict =
 {-| Creates a dictionary of `(element, equivalent)` pairs from a disjoint set.
 -}
 toDict : DisjointSet comparable -> Dict comparable comparable
-toDict set =
-    case set of
-        DisjointSet dict ->
-            dict
+toDict (DisjointSet set) =
+    set
+
+
+path : comparable -> DisjointSet comparable -> Maybe (List comparable)
+path item (DisjointSet set) =
+    let
+        path_ : comparable -> List comparable -> Maybe (List comparable)
+        path_ head tail =
+            Dict.get item set
+                |> Maybe.andThen
+                    (\parent ->
+                        if head == parent then
+                            Just (head :: tail)
+
+                        else
+                            path_ parent (head :: tail)
+                    )
+    in
+    path_ item []
