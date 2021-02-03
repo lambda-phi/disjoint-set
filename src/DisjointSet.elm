@@ -1,8 +1,28 @@
-module DisjointSet exposing (DisjointSet, empty, union, find, fromList, toList)
+module DisjointSet exposing
+    ( DisjointSet, empty
+    , union, add
+    , find, has, items
+    , toList, fromList
+    )
 
 {-| A disjoint set implementation with path compression.
 
-@docs DisjointSet, empty, union, find, fromList, toList
+@docs DisjointSet, empty
+
+
+# Adding elements
+
+@docs union, add
+
+
+# Querying for elements
+
+@docs find, has, items
+
+
+# List operations
+
+@docs toList, fromList
 
 -}
 
@@ -48,26 +68,41 @@ This operation does path compression as an optimization.
 
 -}
 union : a -> a -> DisjointSet a -> DisjointSet a
-union item1 item2 (DisjointSet pairs) =
+union x1 x2 (DisjointSet pairs) =
     let
         path1 =
-            path item1 pairs |> Maybe.withDefault [ item1 ]
+            path x1 pairs |> Maybe.withDefault [ x1 ]
 
         root =
-            List.head path1 |> Maybe.withDefault item1
+            List.head path1 |> Maybe.withDefault x1
 
         compressed =
             List.map2 (\x y -> [ ( x, root ), ( y, root ) ])
                 path1
-                (path item2 pairs |> Maybe.withDefault [ item2 ])
+                (path x2 pairs |> Maybe.withDefault [ x2 ])
                 |> List.concat
     in
     DisjointSet (merge compressed pairs)
 
 
-{-| Finds the root element from a given element.
+{-| Adds a list of elements into their own set.
 
-    import Dict
+    add [ "a" ] empty |> toList --> [ ("a", "a") ]
+    add [ "a", "b" ] empty |> toList --> [ ("a", "a"), ("b", "b") ]
+
+    empty
+        |> add [ "a" ]
+        |> add [ "b", "c" ]
+        |> toList
+    --> [ ("a", "a"), ("b", "b"), ("c", "c") ]
+
+-}
+add : List a -> DisjointSet a -> DisjointSet a
+add xs set =
+    List.foldl (\x -> union x x) set xs
+
+
+{-| Finds the root element from a given element if it exists.
 
     set : DisjointSet String
     set =
@@ -86,9 +121,57 @@ union item1 item2 (DisjointSet pairs) =
 
 -}
 find : a -> DisjointSet a -> Maybe a
-find item (DisjointSet pairs) =
-    path item pairs
+find x (DisjointSet pairs) =
+    path x pairs
         |> Maybe.andThen List.head
+
+
+{-| Checks whether or not the disjoint set contains an element.
+
+    set : DisjointSet String
+    set =
+        add [ "a" ] empty
+
+    has "a" set --> True
+    has "b" set --> False
+
+-}
+has : a -> DisjointSet a -> Bool
+has x set =
+    case find x set of
+        Just _ ->
+            True
+
+        Nothing ->
+            False
+
+
+{-| Returns a list of all the elements contained in the disjoint set.
+
+    items empty --> []
+    items (add [ "a", "b", "c" ] empty) --> [ "a", "b", "c" ]
+
+    empty
+        |> union "a" "b"
+        |> union "c" "d"
+        |> items
+    --> [ "a", "b", "c", "d" ]
+
+-}
+items : DisjointSet a -> List a
+items (DisjointSet pairs) =
+    List.map Tuple.first pairs
+
+
+
+-- List operations
+
+
+{-| Creates a list of `(element, equivalent)` pairs from a disjoint set.
+-}
+toList : DisjointSet a -> List ( a, a )
+toList (DisjointSet list) =
+    list
 
 
 {-| Creates a disjoint set from a list of `(element, equivalent)` pairs.
@@ -98,11 +181,8 @@ fromList list =
     List.foldl (\( x, y ) -> union x y) empty list
 
 
-{-| Creates a list of `(element, equivalent)` pairs from a disjoint set.
--}
-toList : DisjointSet a -> List ( a, a )
-toList (DisjointSet list) =
-    list
+
+-- Local helper functions
 
 
 path : a -> List ( a, a ) -> Maybe (List a)
